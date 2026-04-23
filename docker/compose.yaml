@@ -1,0 +1,98 @@
+# Docker Compose для rootless Docker.
+# Все сервисы используют один и тот же образ (собирается один раз),
+# различаются только точкой входа и интерактивным режимом.
+#
+# Rootless GPU доступ обеспечивается через CDI (Container Device Interface):
+# `devices: ["nvidia.com/gpu=all"]` — не требует cgroups-хаков.
+#
+# Volume mounts:
+#   - исходники bind-mount'ятся, чтобы правки из Cursor подхватывались
+#     без rebuild образа (editable install уже прописан в Dockerfile);
+#   - runs/ и motions/ живут в /home на хосте (276 GB свободно).
+
+x-image: &image
+  image: otus_rl_project:latest
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile
+    args:
+      USER_UID: ${UID:-1004}
+      USER_GID: ${GID:-1004}
+      USER_NAME: dev
+      UNITREE_RL_MJLAB_REF: main
+
+x-common: &common
+  <<: *image
+  # Run as UID 0 inside the container. Under rootless Docker, UID 0 inside
+  # is automatically mapped to the daemon owner on the host (our `ev` user,
+  # UID 1004). This way files written to bind mounts stay owned by `ev`
+  # on the host and the container has full access to them. It is NOT actual
+  # root on the host — only root within the user namespace.
+  user: "0:0"
+  environment:
+    - PYTHONPATH=/workspace/otus_rl_project/src
+    # Put HOME inside the project so any "Attach to Running Container" flow
+    # (Cursor's built-in Docker tools, Dev Containers, plain `docker exec`)
+    # defaults to /workspace/otus_rl_project in file dialogs instead of /root.
+    # Side effect: shell history and tool caches (bash/python/wandb) land
+    # inside the repo dir — they are pre-ignored by .gitignore.
+    - HOME=/workspace/otus_rl_project
+    - WANDB_API_KEY=${WANDB_API_KEY:-}
+    - WANDB_MODE=${WANDB_MODE:-online}
+    - MUJOCO_GL=${MUJOCO_GL:-egl}
+    # X11 forwarding (for the passive viewer in `play`)
+    - DISPLAY=${DISPLAY:-:0}
+    - XAUTHORITY=/tmp/.Xauthority-host
+  volumes:
+    # Whole repo mounted as a single directory. Editable install inside the
+    # image points at the same path, so local edits reflect instantly and
+    # `third_party/`, `runs/`, `assets/`, `motions/` are all visible inside.
+    - ..:/workspace/otus_rl_project
+    # X11 socket for GLFW viewer (only needed for `play`)
+    - /tmp/.X11-unix:/tmp/.X11-unix:ro
+    - ${XAUTHORITY:-/dev/null}:/tmp/.Xauthority-host:ro
+  # Rootless-friendly GPU passthrough via CDI
+  devices:
+    - nvidia.com/gpu=all
+  # Give RL loops a reasonable shared memory pool
+  shm_size: "8gb"
+  working_dir: /workspace/otus_rl_project
+  ipc: host
+  # Tell Cursor / VS Code "Attach to Running Container" which folder to open
+  # by default. The extension reads this label and pre-fills the path dialog.
+  labels:
+    devcontainer.metadata: '[{"workspaceFolder":"/workspace/otus_rl_project"}]'
+
+services:
+  # Persistent development container. Kept alive by `sleep infinity` so that
+  # `make up` starts it in background and `make attach` can run new bash
+  # sessions via `docker exec`. For a one-shot ephemeral shell, use
+  # `docker compose run --rm shell bash` (that overrides the CMD below).
+  shell:
+    <<: *common
+    container_name: otus_rl_project
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    command: ["sleep", "infinity"]
+
+  # Training. Override command on CLI:
+  #   docker compose run --rm train otus-train --task Unitree-G1-Flat ...
+  train:
+    <<: *common
+    container_name: otus_rl_project-train
+    command: ["bash", "-lc", "otus-train --help"]
+
+  # Sim2sim deploy — keyboard control in MuJoCo viewer. Needs host X11.
+  play:
+    <<: *common
+    container_name: otus_rl_project-play
+    stdin_open: true
+    tty: true
+    command: ["bash", "-lc", "otus-play --policy /workspace/otus_rl_project/runs/latest/policy.onnx"]
+
+  # ONNX export of a trained policy. No GUI needed.
+  export:
+    <<: *common
+    container_name: otus_rl_project-export
+    command: ["bash", "-lc", "otus-export --checkpoint /workspace/otus_rl_project/runs/latest/model.pt --out /workspace/otus_rl_project/runs/latest/policy.onnx"]

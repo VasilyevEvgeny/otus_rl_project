@@ -1,0 +1,59 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# --- RL artifacts (heavy, goes to /home volume, never to repo) ---
+runs/**
+!runs/.gitkeep
+motions/**
+!motions/.gitkeep
+wandb/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.tar.gz
+
+# --- MuJoCo / rendering ---
+*.mp4
+*.gif
+MUJOCO_LOG.TXT
+
+# --- third_party (cloned repos) ---
+third_party/**
+!third_party/.gitkeep
+
+# --- assets (heavy MJCF / meshes pulled by scripts/setup_assets.sh) ---
+assets/**
+!assets/.gitkeep
+!assets/README.md
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# --- container HOME droppings (HOME=/workspace/otus_rl_project inside container) ---
+.bash_history
+.python_history
+.cache/
+.config/
+.local/
+.wandb/
+.netrc
+.gitconfig
+.profile
+.bashrc

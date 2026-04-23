@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "otus-rl-project"
+version = "0.0.1"
+description = "RL training of Unitree G1 humanoid for locomotion and acrobatics via mjlab/MuJoCo-Warp, with ONNX sim2sim deploy in MuJoCo."
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = { text = "Apache-2.0" }
+authors = [{ name = "ev" }]
+
+# Core deps are resolved by the Docker image (see docker/Dockerfile).
+# This file is mostly for editable-install of our own package and for
+# uv lock reproducibility.
+dependencies = [
+    # Simulation / RL stack
+    "mjlab==1.2.0",
+    "mujoco>=3.5",
+    "mujoco-warp>=3.5",
+    "warp-lang>=1.12.0",
+    "rsl-rl-lib==5.0.1",
+    # Deploy stack (inference + keyboard control in MuJoCo viewer)
+    "onnxruntime-gpu>=1.20",
+    "onnxscript>=0.5.4",
+    "pygame>=2.5",            # keyboard/gamepad polling
+    # Experiment tracking & misc
+    "wandb>=0.22.3",
+    "tensorboard>=2.20",
+    "tyro>=0.8",
+    "tqdm",
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6",
+    "pytest>=8",
+    "ipython",
+]
+
+[project.scripts]
+otus-train  = "otus_rl_project.train.main:main"
+otus-play   = "otus_rl_project.deploy.keyboard_play:main"
+otus-export = "otus_rl_project.deploy.export_onnx:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]  # long lines are fine in research code
