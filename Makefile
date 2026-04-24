@@ -81,22 +81,35 @@ logs:                           ## Tail container logs
 shell:                          ## Open an ephemeral bash (dies on exit; use `attach` for persistent)
 	$(COMPOSE) run --rm shell bash
 
+.PHONY: list-tasks
+list-tasks:                     ## List all registered training tasks
+	@$(MAKE) --no-print-directory exec CMD="otus-list-tasks"
+
 .PHONY: train
-train:                          ## Start training. Pass TASK=... CMD="..." to override
-	$(COMPOSE) run --rm train bash -lc "$${CMD:-otus-train --help}"
+train:                          ## Start training in the persistent container. Pass CMD="..." to override
+	@$(MAKE) --no-print-directory exec CMD="$${CMD:-otus-train --help}"
 
 .PHONY: play
-play:                           ## Launch sim2sim deploy (requires X11)
+play:                           ## Run sim2sim keyboard deploy (requires X11). Pass CMD="otus-play --policy ..." to customize
 	xhost +SI:localuser:$$USER >/dev/null 2>&1 || true
-	$(COMPOSE) run --rm play
+	@$(MAKE) --no-print-directory exec CMD="$${CMD:-otus-play --help}"
 
 .PHONY: export
-export:                         ## Export latest checkpoint to ONNX
-	$(COMPOSE) run --rm export
+export:                         ## Re-export a .pt checkpoint to ONNX. Pass CMD="otus-export --task ... --checkpoint ..." to customize
+	@$(MAKE) --no-print-directory exec CMD="$${CMD:-otus-export --help}"
+
+.PHONY: play-viser
+play-viser:                     ## Headless web viewer (Viser) on http://localhost:8080. Latest checkpoint by default.
+	@CKPT="$${CKPT:-$$(ls -t logs/rsl_rl/*/*/model_*.pt 2>/dev/null | head -1)}"; \
+	if [ -z "$$CKPT" ]; then echo ">>> no checkpoint found under logs/rsl_rl"; exit 1; fi; \
+	TASK="$${TASK:-Unitree-G1-Flat}"; \
+	echo ">>> task=$$TASK  ckpt=$$CKPT"; \
+	echo ">>> open http://localhost:8080 on your laptop (after ssh -L 8080:localhost:8080)"; \
+	$(MAKE) --no-print-directory exec CMD="otus-play-mjlab $$TASK --viewer viser --num-envs 1 --checkpoint-file $$CKPT"
 
 .PHONY: tb
-tb:                             ## Run tensorboard on http://localhost:6006
-	$(COMPOSE) run --rm --service-ports shell tensorboard --logdir=/workspace/otus_rl_project/runs --host=0.0.0.0
+tb:                             ## TensorBoard on http://localhost:6006 (run inside the persistent container)
+	@$(MAKE) --no-print-directory exec CMD="tensorboard --logdir=/workspace/otus_rl_project/logs --host=0.0.0.0 --port=6006"
 
 .PHONY: prune
 prune:                          ## Remove dangling images + build cache (rootless only)

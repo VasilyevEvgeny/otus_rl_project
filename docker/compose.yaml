@@ -74,7 +74,21 @@ services:
     stdin_open: true
     tty: true
     restart: unless-stopped
-    command: ["sleep", "infinity"]
+    # On every (re)start: re-install our package editable, so any change to
+    # pyproject.toml (new entry points, new deps) takes effect without a full
+    # `make build`. Cheap (~3s) when nothing changed.
+    command:
+      - "bash"
+      - "-lc"
+      - "pip install -e . --no-deps --break-system-packages >/dev/null 2>&1 || true; exec sleep infinity"
+    # Expose the two HTTP services we use from a laptop via `ssh -L ...`:
+    #   8080 — Viser web viewer (otus-play-mjlab --viewer viser)
+    #   6006 — TensorBoard (`make tb`)
+    # Bind to 127.0.0.1 on the host so other users on the server cannot reach
+    # them; SSH local-forwarding is the only way in.
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:6006:6006"
 
   # Training. Override command on CLI:
   #   docker compose run --rm train otus-train --task Unitree-G1-Flat ...

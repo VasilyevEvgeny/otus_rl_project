@@ -1,38 +1,28 @@
-"""Entry point for RL training of the Unitree G1.
+"""``otus-train`` — RL training entry point for the Unitree G1.
 
-This is a placeholder wired into `pyproject.toml` as `otus-train`.
-Next milestone: wrap `unitree_rl_mjlab`'s PPO runner so we can just call
-`otus-train --task Unitree-G1-Flat --num-envs 4096` and get TensorBoard +
-ONNX export.
+Thin wrapper around ``unitree_rl_mjlab``'s ``scripts/train.py`` (cloned into
+``/opt/third_party/unitree_rl_mjlab`` at image build time). The upstream
+script owns the ``tyro`` CLI; we only prepare the environment and delegate.
+
+Typical usage (inside the container)::
+
+    otus-train Unitree-G1-Flat --env.scene.num-envs=4096
+    otus-train Unitree-G1-Flat --agent.max-iterations=2000 --gpu-ids 0
+
+The checkpoint directory ``logs/rsl_rl/<experiment>/<timestamp>/`` is created
+under ``/workspace/otus_rl_project/``, which is bind-mounted from the host.
+Each checkpoint save also writes a ``*.onnx`` next to ``model_*.pt`` thanks
+to ``VelocityOnPolicyRunner.save`` in mjlab.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
-import tyro
-
-
-@dataclass
-class TrainArgs:
-    task: str = "Unitree-G1-Flat"
-    num_envs: int = 4096
-    iterations: int = 10_000
-    seed: int = 0
-    run_name: str | None = None
-    wandb_project: str = "otus_rl_project"
-    wandb_mode: str = "online"
-    headless: bool = True
+from otus_rl_project.utils.upstream import run_upstream_script
 
 
 def main() -> None:
-    args = tyro.cli(TrainArgs)
-    print(f"[train] placeholder — would start training with args={args}")
-    raise NotImplementedError(
-        "Training entrypoint is not implemented yet. "
-        "Next step: call into unitree_rl_mjlab's task registry and run PPO."
-    )
+  run_upstream_script("scripts/train.py", argv0="otus-train")
 
 
 if __name__ == "__main__":
-    main()
+  main()

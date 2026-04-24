@@ -57,3 +57,12 @@ assets/**
 .gitconfig
 .profile
 .bashrc
+.cursor/
+.cursor-server/
+.nv/
+.ssh/
+.docker/
+.X11-unix/
+
+# --- training outputs ---
+logs/
