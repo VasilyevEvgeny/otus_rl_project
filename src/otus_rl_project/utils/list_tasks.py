@@ -11,6 +11,7 @@ from __future__ import annotations
 def main() -> None:
   import mjlab.tasks  # noqa: F401  (populate mjlab side of the registry)
   import src.tasks  # noqa: F401  (populate unitree_rl_mjlab side)
+  import otus_rl_project.envs  # noqa: F401  (populate otus side: spinkick, ...)
   from mjlab.tasks.registry import list_tasks
 
   tasks = sorted(list_tasks())

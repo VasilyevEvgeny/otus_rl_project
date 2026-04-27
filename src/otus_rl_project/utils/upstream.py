@@ -28,12 +28,16 @@ def assert_in_container() -> None:
 
 
 def bootstrap_env() -> None:
-  """Apply sane defaults for headless MuJoCo + wandb/tensorboard dirs."""
+  """Apply sane defaults for headless MuJoCo + wandb/tensorboard dirs and
+  register otus-specific tasks (spinkick, etc.) before the upstream CLI tries
+  to look them up in :mod:`mjlab.tasks.registry`."""
   os.environ.setdefault("MUJOCO_GL", "egl")
   os.environ.setdefault("WANDB_DIR", str(PROJECT_ROOT / "runs" / "wandb"))
   os.environ.setdefault("TENSORBOARD_DIR", str(PROJECT_ROOT / "runs" / "tb"))
   (PROJECT_ROOT / "runs" / "wandb").mkdir(parents=True, exist_ok=True)
   (PROJECT_ROOT / "runs" / "tb").mkdir(parents=True, exist_ok=True)
+
+  import otus_rl_project.envs  # noqa: F401  (side-effect: task registration)
 
 
 def run_upstream_script(relative_path: str, argv0: str) -> None:

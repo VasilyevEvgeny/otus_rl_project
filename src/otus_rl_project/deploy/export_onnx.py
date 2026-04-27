@@ -35,6 +35,10 @@ class ExportArgs:
   """Where to write the ``.onnx``. Defaults to ``<checkpoint_dir>/<checkpoint_stem>.onnx``."""
   device: str = "cpu"
   """Torch device used while instantiating the runner (the final ONNX always runs on CPU weights)."""
+  motion_file: Path | None = None
+  """For motion-tracking tasks: path to the reference NPZ used during training.
+  Required because the env config bakes the motion path; we just need any valid
+  motion to instantiate the env so the policy can be loaded."""
 
 
 def main() -> None:
@@ -59,6 +63,15 @@ def main() -> None:
   agent_cfg = load_rl_cfg(args.task)
 
   env_cfg.scene.num_envs = 1
+
+  if args.motion_file is not None:
+    cmds = env_cfg.commands
+    motion_cmd = cmds["motion"] if isinstance(cmds, dict) else getattr(cmds, "motion", None)
+    if motion_cmd is None or not hasattr(motion_cmd, "motion_file"):
+      raise SystemExit(
+        f"--motion-file passed but task {args.task!r} has no commands.motion.motion_file"
+      )
+    motion_cmd.motion_file = str(args.motion_file)
 
   env = ManagerBasedRlEnv(cfg=env_cfg, device=args.device, render_mode=None)
   env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)

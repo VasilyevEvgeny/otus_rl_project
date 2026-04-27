@@ -103,9 +103,48 @@ play-viser:                     ## Headless web viewer (Viser) on http://localho
 	@CKPT="$${CKPT:-$$(ls -t logs/rsl_rl/*/*/model_*.pt 2>/dev/null | head -1)}"; \
 	if [ -z "$$CKPT" ]; then echo ">>> no checkpoint found under logs/rsl_rl"; exit 1; fi; \
 	TASK="$${TASK:-Unitree-G1-Flat}"; \
+	EXTRA="$${EXTRA:-}"; \
 	echo ">>> task=$$TASK  ckpt=$$CKPT"; \
 	echo ">>> open http://localhost:8080 on your laptop (after ssh -L 8080:localhost:8080)"; \
-	$(MAKE) --no-print-directory exec CMD="otus-play-mjlab $$TASK --viewer viser --num-envs 1 --checkpoint-file $$CKPT"
+	$(MAKE) --no-print-directory exec CMD="otus-play-mjlab $$TASK --viewer viser --num-envs 1 --checkpoint-file $$CKPT $$EXTRA"
+
+# --- Motion imitation (tracking) workflow ---------------------------------
+
+.PHONY: track-prep
+track-prep:                     ## Convert a CSV motion to NPZ. Vars: CSV (path), NAME (output base), FPS_IN (30), FPS_OUT (50), LINE_RANGE (e.g. 2191,2431 to slice frames)
+	@CSV="$${CSV:?set CSV=path/to/motion.csv}"; \
+	NAME="$${NAME:-$$(basename $$CSV .csv)}"; \
+	FPS_IN="$${FPS_IN:-30}"; FPS_OUT="$${FPS_OUT:-50}"; \
+	LR_FLAG=""; if [ -n "$${LINE_RANGE:-}" ]; then LR_FLAG="--line-range $$LINE_RANGE"; fi; \
+	echo ">>> CSV=$$CSV  NAME=$$NAME  fps=$$FPS_IN->$$FPS_OUT  range=$${LINE_RANGE:-(full file)}"; \
+	$(MAKE) --no-print-directory exec CMD="cd /workspace/otus_rl_project && python /opt/third_party/unitree_rl_mjlab/scripts/csv_to_npz.py --robot g1 --input-file $$CSV --output-name $$NAME --input-fps $$FPS_IN --output-fps $$FPS_OUT $$LR_FLAG"
+
+.PHONY: track-train
+track-train:                    ## Train motion-tracking policy. Vars: NPZ (path), ITERS (default 3000), NUM_ENVS (default 4096), RUN (run-name)
+	@NPZ="$${NPZ:?set NPZ=path/to/motion.npz}"; \
+	ITERS="$${ITERS:-3000}"; NUM_ENVS="$${NUM_ENVS:-4096}"; \
+	RUN="$${RUN:-tracker}"; \
+	TASK="$${TASK:-Unitree-G1-Tracking-No-State-Estimation}"; \
+	echo ">>> task=$$TASK npz=$$NPZ iters=$$ITERS envs=$$NUM_ENVS run=$$RUN"; \
+	$(MAKE) --no-print-directory exec CMD="otus-train $$TASK --motion-file=$$NPZ --env.scene.num-envs=$$NUM_ENVS --agent.max-iterations=$$ITERS --agent.run-name=$$RUN --agent.logger=tensorboard --agent.upload-model=False"
+
+.PHONY: track-play-viser
+track-play-viser:               ## Replay a trained tracker in Viser web viewer. Vars: CKPT (default = latest), NPZ (motion file)
+	@CKPT="$${CKPT:-$$(ls -t logs/rsl_rl/g1_tracking/*/model_*.pt 2>/dev/null | head -1)}"; \
+	if [ -z "$$CKPT" ]; then echo ">>> no tracking checkpoint under logs/rsl_rl/g1_tracking"; exit 1; fi; \
+	NPZ="$${NPZ:?set NPZ=path/to/motion.npz}"; \
+	TASK="$${TASK:-Unitree-G1-Tracking-No-State-Estimation}"; \
+	echo ">>> task=$$TASK ckpt=$$CKPT motion=$$NPZ"; \
+	echo ">>> open http://localhost:8080 on your laptop"; \
+	$(MAKE) --no-print-directory exec CMD="otus-play-mjlab $$TASK --viewer viser --num-envs 1 --motion-file=$$NPZ --checkpoint-file=$$CKPT"
+
+.PHONY: track-replay-ref
+track-replay-ref:               ## Replay raw motion reference (no trained policy). Vars: NPZ (motion file)
+	@NPZ="$${NPZ:?set NPZ=path/to/motion.npz}"; \
+	TASK="$${TASK:-Unitree-G1-Tracking-No-State-Estimation}"; \
+	echo ">>> task=$$TASK motion=$$NPZ  agent=zero (no policy, just replay the human reference)"; \
+	echo ">>> open http://localhost:8080 on your laptop"; \
+	$(MAKE) --no-print-directory exec CMD="otus-play-mjlab $$TASK --viewer viser --num-envs 1 --motion-file=$$NPZ --agent zero --no-terminations"
 
 .PHONY: tb
 tb:                             ## TensorBoard on http://localhost:6006 (run inside the persistent container)
