@@ -42,10 +42,14 @@ dev = [
 
 [project.scripts]
 otus-train      = "otus_rl_project.train.main:main"
+otus-train-ars  = "otus_rl_project.train.ars_main:main"
+otus-train-amp  = "otus_rl_project.train.amp_main:main"
+otus-train-sac  = "otus_rl_project.train.sac_main:main"
 otus-play       = "otus_rl_project.deploy.keyboard_play:main"
 otus-play-mjlab = "otus_rl_project.deploy.play_mjlab:main"
 otus-export     = "otus_rl_project.deploy.export_onnx:main"
 otus-list-tasks = "otus_rl_project.utils.list_tasks:main"
+otus-extract-tb = "otus_rl_project.eval.extract_tb:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

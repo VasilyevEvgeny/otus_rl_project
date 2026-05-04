@@ -7,6 +7,7 @@ script owns the ``tyro`` CLI; we only prepare the environment and delegate.
 Typical usage (inside the container)::
 
     otus-train Unitree-G1-Flat --env.scene.num-envs=4096
+    otus-train Otus-G1-Walk-Compare --agent.locomotion-eval-interval=50
     otus-train Unitree-G1-Flat --agent.max-iterations=2000 --gpu-ids 0
 
 The checkpoint directory ``logs/rsl_rl/<experiment>/<timestamp>/`` is created

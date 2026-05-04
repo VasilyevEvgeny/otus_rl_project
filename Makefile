@@ -89,6 +89,12 @@ list-tasks:                     ## List all registered training tasks
 train:                          ## Start training in the persistent container. Pass CMD="..." to override
 	@$(MAKE) --no-print-directory exec CMD="$${CMD:-otus-train --help}"
 
+.PHONY: train-ars
+train-ars:                      ## ARS-V2 training on Otus-G1-Walk-Compare. Vars: ITERS, NUM_ENVS, RUN, EXTRA="--noise-std 0.04 ..."
+	@ITERS="$${ITERS:-500}"; NUM_ENVS="$${NUM_ENVS:-4096}"; RUN="$${RUN:-ars}"; EXTRA="$${EXTRA:-}"; \
+	echo ">>> ARS  iters=$$ITERS  num_envs=$$NUM_ENVS  run=$$RUN  extra=[$$EXTRA]"; \
+	$(MAKE) --no-print-directory exec CMD="otus-train-ars --num-iterations $$ITERS --num-envs $$NUM_ENVS --run-name $$RUN $$EXTRA"
+
 .PHONY: play
 play:                           ## Run sim2sim keyboard deploy (requires X11). Pass CMD="otus-play --policy ..." to customize
 	xhost +SI:localuser:$$USER >/dev/null 2>&1 || true
@@ -149,6 +155,29 @@ track-replay-ref:               ## Replay raw motion reference (no trained polic
 .PHONY: tb
 tb:                             ## TensorBoard on http://localhost:6006 (run inside the persistent container)
 	@$(MAKE) --no-print-directory exec CMD="tensorboard --logdir=/workspace/otus_rl_project/logs --host=0.0.0.0 --port=6006"
+
+# --- Phase 4 (cross-algorithm comparison report) --------------------------
+
+.PHONY: compare-night
+compare-night:                  ## Run PPO/AMP/ARS overnight on the comparison task. Vars: PPO_ITERS, AMP_ITERS, ARS_ITERS, NUM_ENVS, RUN_TAG, SEED
+	bash scripts/night_compare_orchestrator.sh
+
+.PHONY: compare-smoke
+compare-smoke:                  ## ~30-second smoke test of the orchestrator pipeline (2 iters each, 64 envs)
+	bash scripts/night_compare_orchestrator.sh --smoke
+
+.PHONY: compare-extract
+compare-extract:                ## Extract Eval/AMP scalars to docs/results/. Vars: PPO_RUN, AMP_RUN, ARS_RUN (default: latest of each)
+	@PPO_RUN="$${PPO_RUN:-$$(ls -td logs/rsl_rl/g1_walk_compare/*ppo* 2>/dev/null | head -1)}"; \
+	AMP_RUN="$${AMP_RUN:-$$(ls -td logs/rsl_rl/g1_walk_amp/*amp* 2>/dev/null | head -1)}"; \
+	ARS_RUN="$${ARS_RUN:-$$(ls -td logs/rsl_rl/g1_walk_compare_ars/*ars* 2>/dev/null | head -1)}"; \
+	PAIRS=""; \
+	[ -n "$$PPO_RUN" ] && PAIRS="$$PAIRS ppo=$$PPO_RUN"; \
+	[ -n "$$AMP_RUN" ] && PAIRS="$$PAIRS amp=$$AMP_RUN"; \
+	[ -n "$$ARS_RUN" ] && PAIRS="$$PAIRS ars=$$ARS_RUN"; \
+	if [ -z "$$PAIRS" ]; then echo ">>> no run dirs found under logs/rsl_rl/g1_walk_*; pass them via PPO_RUN=, AMP_RUN=, ARS_RUN="; exit 1; fi; \
+	echo ">>> extracting --run$$PAIRS --out-dir docs/results"; \
+	$(MAKE) --no-print-directory exec CMD="otus-extract-tb --run$$PAIRS --out-dir docs/results"
 
 .PHONY: prune
 prune:                          ## Remove dangling images + build cache (rootless only)
